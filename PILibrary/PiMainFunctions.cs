@@ -303,6 +303,65 @@ namespace PILibrary
         }
 
 
+        public static List<AbstractRetrievePoints> LoadTagClassesAverage(
+            String inputFilePath,
+            String outputDirectory,
+            String timeResolution,
+            int numYears,
+            int pageSize,
+            PIServer piServer,
+            PISystem piSystem,
+            int numParallelTasks,
+            Logger logger)
+        {
+
+            var inputLines = LoadInputFile(inputFilePath);
+
+            List<AbstractRetrievePoints> tagClasses = new List<AbstractRetrievePoints>();
+
+            throw (new NotImplementedException());
+            //Parallel.ForEach(
+            //    inputLines,
+            //    new ParallelOptions { MaxDegreeOfParallelism = numParallelTasks },
+            //    (String[] line) =>
+            //    {
+            //        string tagName = line[0];
+            //        string startTimeString = line[1];
+            //        string endTimeString = line[2];
+
+            //        PIPoint tag;
+            //        try
+            //        {
+            //            tag = PIPoint.FindPIPoint(piServer, tagName);
+            //            AFTime startTime = new AFTime(startTimeString);
+            //            AFTime endTime = new AFTime(endTimeString);
+            //            AFTimeRange timeRange = new AFTimeRange(startTime, endTime);
+
+            //            string startTimeStamp = startTime.UtcTime.ToString("yyyy/MM/dd HH:mm:ss");
+            //            string endTimeStamp = endTime.UtcTime.ToString("yyyy/MM/dd HH:mm:ss");
+            //            lock (logger) { logger.Log($"{startTimeStamp} : {endTimeStamp}, {tagName}"); }
+            //            lock (tagClasses)
+            //            {
+            //                tagClasses.Add(new PIRecordedPointRetrievalClass(
+            //                    tag,
+            //                    timeRange,
+            //                    outputDirectory,
+            //                    PIRandomFunctionsUtil.ParseTimeResolutionString(timeResolution),
+            //                    numYears,
+            //                    pageSize,
+            //                    logger));
+            //            }
+            //        }
+            //        catch (Exception e)
+            //        {
+            //            logger.Log("Exception: could not FindPiPoint: " + e.ToString());
+            //        }
+            //    });
+
+            return tagClasses;
+        }
+
+
         public static void DoStuff(
             List<AbstractRetrievePoints> tagClasses,
             int numParallelTasks,
