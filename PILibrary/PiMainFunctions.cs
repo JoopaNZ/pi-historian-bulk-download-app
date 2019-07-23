@@ -4,9 +4,12 @@ using OSIsoft.AF.Time;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using OSIsoft.AF.Asset;
+using OSIsoft.AF.Data;
+
 
 // https://pisquare.osisoft.com/thread/8111
 // https://technodocbox.com/Java/69845166-Best-practices-for-building-af-sdk-applications.html
@@ -303,6 +306,10 @@ namespace PILibrary
         }
 
 
+
+        /// <summary>
+        /// Build a list of PIPointAverageRetrievalClass objects to query PIPoint Average values
+        /// <returns></returns>
         public static List<AbstractRetrievePoints> LoadTagClassesAverage(
             String inputFilePath,
             String outputDirectory,
@@ -314,53 +321,65 @@ namespace PILibrary
             int numParallelTasks,
             Logger logger)
         {
-
-            var inputLines = LoadInputFile(inputFilePath);
-
+            var inputLines = new List<String[]>();
+            using (var inputStreamReader = new StreamReader(inputFilePath))
+            {
+                while (!inputStreamReader.EndOfStream)
+                {
+                    inputLines.Add(inputStreamReader.ReadLine().Split(','));
+                }
+            }
             List<AbstractRetrievePoints> tagClasses = new List<AbstractRetrievePoints>();
 
-            throw (new NotImplementedException());
-            //Parallel.ForEach(
-            //    inputLines,
-            //    new ParallelOptions { MaxDegreeOfParallelism = numParallelTasks },
-            //    (String[] line) =>
-            //    {
-            //        string tagName = line[0];
-            //        string startTimeString = line[1];
-            //        string endTimeString = line[2];
+            Parallel.ForEach(
+                inputLines,
+                new ParallelOptions { MaxDegreeOfParallelism = numParallelTasks },
+                (String[] line) =>
+                {
+                    string tagName = line[0];
+                    string startTimeString = line[1];
+                    string endTimeString = line[2];
+                    string intervalString = line[3];
 
-            //        PIPoint tag;
-            //        try
-            //        {
-            //            tag = PIPoint.FindPIPoint(piServer, tagName);
-            //            AFTime startTime = new AFTime(startTimeString);
-            //            AFTime endTime = new AFTime(endTimeString);
-            //            AFTimeRange timeRange = new AFTimeRange(startTime, endTime);
+                    PIPoint tag;
+                    try
+                    {
+                        tag = PIPoint.FindPIPoint(piServer, tagName);
+                        AFTime startTime = new AFTime(startTimeString);
+                        AFTime nextTime = AFQueryUtil.GetNextRecordedValue(tag, startTime).Timestamp;
+                        if (nextTime > startTime)
+                        {
+                            startTime = new AFTime(nextTime.UtcTime.Date);
+                        }
+                        AFTime endTime = new AFTime(endTimeString);
+                        AFTimeRange timeRange = new AFTimeRange(startTime, endTime);
+                        AFTimeSpan timeSpan = new AFTimeSpan(TimeSpan.FromSeconds(Int32.Parse(intervalString)));
 
-            //            string startTimeStamp = startTime.UtcTime.ToString("yyyy/MM/dd HH:mm:ss");
-            //            string endTimeStamp = endTime.UtcTime.ToString("yyyy/MM/dd HH:mm:ss");
-            //            lock (logger) { logger.Log($"{startTimeStamp} : {endTimeStamp}, {tagName}"); }
-            //            lock (tagClasses)
-            //            {
-            //                tagClasses.Add(new PIRecordedPointRetrievalClass(
-            //                    tag,
-            //                    timeRange,
-            //                    outputDirectory,
-            //                    PIRandomFunctionsUtil.ParseTimeResolutionString(timeResolution),
-            //                    numYears,
-            //                    pageSize,
-            //                    logger));
-            //            }
-            //        }
-            //        catch (Exception e)
-            //        {
-            //            logger.Log("Exception: could not FindPiPoint: " + e.ToString());
-            //        }
-            //    });
+                        string startTimeStamp = startTime.UtcTime.ToString("yyyy/MM/dd HH:mm:ss");
+                        string endTimeStamp = endTime.UtcTime.ToString("yyyy/MM/dd HH:mm:ss");
+                        lock (logger) { logger.Log($"{startTimeStamp} : {timeSpan} : {endTimeStamp}, {tagName}"); }
+
+                        lock (tagClasses)
+                        {
+                            tagClasses.Add(new PIPointAverageRetrievalClass(
+                                tag,
+                                timeRange,
+                                timeSpan,
+                                outputDirectory,
+                                PIRandomFunctionsUtil.ParseTimeResolutionString(timeResolution),
+                                numYears,
+                                pageSize,
+                                logger));
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        logger.Log("Exception: could not FindPiPoint: " + e.ToString());
+                    }
+                });
 
             return tagClasses;
         }
-
 
         public static void DoStuff(
             List<AbstractRetrievePoints> tagClasses,

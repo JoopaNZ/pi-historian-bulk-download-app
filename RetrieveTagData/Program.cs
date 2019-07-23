@@ -123,6 +123,19 @@ namespace PIRecordedValuesQueryAsync
                         arguments.NumParallelTasks,
                         logger);
                     break;
+                case "AverageTag":
+                    //Get PIPoint Average value for interval specified at last field of each CSV row
+                    tagClasses = MainFunctions.LoadTagClassesAverage(
+                        arguments.InputFile,
+                        arguments.OutputDirectory,
+                        arguments.TimeResolution,
+                        arguments.NumYears,
+                        arguments.PageSize,
+                        piServer,
+                        piSystem,
+                        arguments.NumParallelTasks,
+                        logger);
+                    break;
 
                 default:
                     break;

@@ -5,6 +5,7 @@ using OSIsoft.AF.Time;
 using System;
 using System.IO;
 using System.Linq;
+using System.Collections.Generic;
 
 namespace PILibrary
 {
@@ -16,6 +17,8 @@ namespace PILibrary
             AFValues values = tag.RecordedValuesByCount(startTime, lookAhead, forward: true, boundaryType: AFBoundaryType.Inside, filterExpression: null, includeFilteredValues: false);
             return values.OrderBy(value => value.Timestamp).ToList()[0];
         }
+
+     
 
     }
 

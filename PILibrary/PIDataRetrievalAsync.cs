@@ -6,6 +6,8 @@ using OSIsoft.AF.UnitsOfMeasure;
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Linq;
 
 // https://techsupport.osisoft.com/Documentation/PI-AF-SDK/html/M_OSIsoft_AF_Data_AFListData_InterpolatedValues.htm
 
@@ -41,6 +43,7 @@ namespace PILibrary
 
         protected PIPoint tag;
         protected AFTimeRange timeRange;
+        protected AFTimeSpan timeSpan;
         protected string outputDirectory;
         protected PIRandomFunctionsUtil.TimeResolution timeResolution;
         protected int numYears;
@@ -118,6 +121,115 @@ namespace PILibrary
             lock (logger)
             {
                 logger.Log($"{k}, {nextStartTimeStamp} : {nextEndTimeStamp}, {values.Count}, {tag.Name}");
+            }
+            k++;
+
+            for (int i = skipCount; i < values.Count; i++)
+            {
+                string datePath = PIRandomFunctionsUtil.DateTimeToDatePath(values[i].Timestamp, timeResolution, numYears);
+                if (outputStreamWriter == null || lastDatePath != datePath)
+                {
+                    string outputPath = Path.Combine(outputDirectory, datePath, tag.Name);
+                    Directory.CreateDirectory(new FileInfo(outputPath).Directory.FullName);
+                    if (outputStreamWriter != null)
+                    {
+                        outputStreamWriter.Close();
+                    }
+                    outputStreamWriter = new StreamWriter(outputPath);
+                    lastDatePath = datePath;
+                }
+                outputStreamWriter.WriteLine($"{values[i].Timestamp.UtcTime.ToString("o")},{values[i].Value}");
+            }
+
+            fetchNextPage = values.Count >= pageSize;
+            if (fetchNextPage)
+            {
+                int lastIndex = values.Count - 1;
+                skipCount = 1;
+                nextStartTime = values[lastIndex].Timestamp;
+                for (int i = lastIndex - 1; i >= 0; --i)
+                {
+                    if (values[i].Timestamp == nextStartTime)
+                    {
+                        ++skipCount;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+            if (!fetchNextPage)
+            {
+                this.Close();
+                lock (closedLock) { closed = true; }
+            }
+        }
+    }
+
+    /// <summary>
+    /// PIPoint Average summary for each timeSpan (interval) within the timeRange
+    /// </summary>
+    public class PIPointAverageRetrievalClass : AbstractRetrieveRecordedPoints
+    {
+        private Task<IDictionary<AFSummaryTypes, AFValues>> summaryTask;
+
+        public PIPointAverageRetrievalClass(
+            PIPoint tag,
+            AFTimeRange timeRange,
+            AFTimeSpan timeSpan,
+            string outputDirectory,
+            PIRandomFunctionsUtil.TimeResolution timeResolution,
+            int numYears,
+            int pageSize = 200000,
+            Logger logger = null)
+        {
+            this.tag = tag;
+            this.timeRange = timeRange;
+            this.nextStartTime = timeRange.StartTime;
+            this.outputDirectory = outputDirectory;
+            this.timeResolution = timeResolution;
+            this.timeSpan = timeSpan;
+            this.numYears = numYears;
+            this.pageSize = pageSize;
+            if (logger == null)
+            {
+                logger = new Logger();
+            }
+            this.logger = logger;
+        }
+
+        override public void GetNextResult()
+        {
+
+            pageTimeRange = new AFTimeRange(nextStartTime, timeRange.EndTime);
+            summaryTask = tag.SummariesAsync(pageTimeRange, timeSpan, AFSummaryTypes.Average, AFCalculationBasis.TimeWeighted, AFTimestampCalculation.Auto);
+        }
+
+        override public void WriteNextResult()
+        {
+            try
+            {
+                values = summaryTask.Result.Single(s => s.Key == AFSummaryTypes.Average).Value;
+            }
+            catch (PITimeoutException)
+            {
+                fetchNextPage = true;
+                exceptionCount++;
+                if (exceptionCount > 10)
+                    throw new Exception("EXCEPTION: Too many retries: " + this.tag.Name);
+                return;
+            }
+            catch (Exception ex)
+            {
+                throw (ex);
+            }
+
+            string nextStartTimeStamp = nextStartTime.UtcTime.ToString("yyyy/MM/dd HH:mm:ss");
+            string nextEndTimeStamp = timeRange.EndTime.UtcTime.ToString("yyyy/MM/dd HH:mm:ss");
+            lock (logger)
+            {
+                logger.Log($"{k}, {nextStartTimeStamp} : {nextEndTimeStamp}, 1, {tag.Name}");
             }
             k++;
 
